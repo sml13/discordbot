@@ -2,6 +2,7 @@ import discord
 import datetime
 import requests
 import os
+import json
 from translate import Translator
 from discord.ext import commands
 from PIL import Image
@@ -19,6 +20,13 @@ async def ola(ctx:commands.Context):
     await ctx.reply(f"ola {usuario.display_name} safado \nVocê está no canal: {canal.name}")
 
 entrar_time = {}
+
+@bot.command()
+async def bluetuf(ctx:commands.Context):
+    usuario = ctx.author
+    canal = ctx.channel
+    await ctx.reply(f"de bluetuf twice is suiri two hell, disconected 😞🥰💋💆‍♀️😍 ")
+
 
 @bot.command()
 async def entrar(ctx:commands.Context):
@@ -154,30 +162,30 @@ async def transformar (ctx:commands.Context, scale=3):
     else:
         await ctx.send("O arquivo que enviou não é uma imagem.")
 
+base_url = "https://api.musixmatch.com/ws/1.1/"
+lyrics_matcher = "matcher.lyrics.get"
+format_url = "?format=json&callback=callback"
+artist_search_parameter = "&q_artist="
+track_search_parameter = "&q_track="
+api_key = "6527a4f33b51761b9f2d15c2c524ae10	"
+
+@bot.command()
+async def letra(ctx:commands.Context, musica: str, autormusica: str):
+    api_call = base_url + lyrics_matcher + format_url + artist_search_parameter + autormusica + track_search_parameter + musica + api_key
+    requests = requests.get(api_call)
+    data = requests.json()
+    if 'mesage' in data and 'body' in data ['mesage']:
+        data = data ['mesage']['body']
+        await ctx.reply("Letra de {} por: {}:\n{}".format(musica, autormusica, data ['lyrics']['lyrics_body']))
+        print (musica)
+        print ('lyrics')
+    else:
+        await ctx.reply("Letra não encontrada")
 
 
 
 
 
-
-
-
-
-
-
-
-
-# @bot.command()
-# async def entrar(ctx:commands.Context):
-#    usuario = ctx.author
-#    timenow = time.strftime("%H:%M:%S dia %d/%m/%Y")
-#    await ctx.reply (f"Olá {usuario.display_name} você bateu seu ponto de entrada às {timenow}")
-
-#@bot.command()
-#async def sair(ctx:commands.Context):
-#    usuario = ctx.author
-#    timenow = time.strftime("%H:%M:%S dia %d/%m/%Y")
-#    await ctx.reply (f"Olá {usuario.display_name} você bateu seu ponto de saída às {timenow}")
 
 @bot.event
 async def on_ready():
