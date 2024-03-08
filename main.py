@@ -3,6 +3,7 @@ import datetime
 import requests
 import os
 import json
+import random
 from translate import Translator
 from discord.ext import commands
 from PIL import Image
@@ -23,8 +24,6 @@ entrar_time = {}
 
 @bot.command()
 async def bluetuf(ctx:commands.Context):
-    usuario = ctx.author
-    canal = ctx.channel
     await ctx.reply(f"de bluetuf twice is suiri two hell, disconected 😞🥰💋💆‍♀️😍 ")
 
 
@@ -183,7 +182,22 @@ async def letra(ctx:commands.Context, musica: str, autormusica: str):
         await ctx.reply("Letra não encontrada")
 
 
+@bot.command()
+async def d20(ctx: commands.Context):
+    usuario = ctx.author
+    # Generate a random number from 1 to 20
+    number = random.randint(1, 20)
 
+    # Create an embed
+    embed = discord.Embed(title=f"{usuario.display_name} rolou um D20", description=f"O resultado foi: {number}", color=discord.Color.blue())
+    
+    # Add the image of the corresponding dice
+    file_name = f"dices/{number}.png"  # Assuming the images are in a folder named "dices"
+    file = discord.File(file_name, filename=f"{number}.png")
+    embed.set_image(url=f"attachment://{number}.png")
+
+    # Send the embed
+    await ctx.reply(embed=embed, file=file)
 
 
 
@@ -191,4 +205,4 @@ async def letra(ctx:commands.Context, musica: str, autormusica: str):
 async def on_ready():
     print("Ready")
 
-bot.run("")
+bot.run("MTIxMzA5NjQ1OTg1MTkyNzU2Mg.GfdO4H.mRz7mOxgRd4Hnsbu5os70I7PgOaKX_NLiGDC5E")
