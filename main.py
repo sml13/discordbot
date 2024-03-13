@@ -4,10 +4,14 @@ import requests
 import os
 import json
 import random
+from typing import Union
 from translate import Translator
 from discord.ext import commands
 from PIL import Image
 from io import BytesIO
+from bs4 import BeautifulSoup
+import re
+import asyncio
 
 permissoes = discord.Intents.default()
 permissoes.message_content = True
@@ -21,6 +25,10 @@ async def ola(ctx:commands.Context):
     await ctx.reply(f"ola {usuario.display_name} safado \nVocê está no canal: {canal.name}")
 
 entrar_time = {}
+
+@bot.command()
+async def comandos(ctx:commands.Context):
+    await ctx.send(f"Lembre de sempre usar o prefixo als.\nbluetuf = Meme do bluetuf\nola = teste de resposta com usuario e canal onde enviou mensagem\npiada = Pega uma piada aleatoria de uma api de piadas, obs: só tem 2 piadas por enquanto\nfrase = Manda uma frase famosa aleatória\nentrar = Bater o ponto de entrada\nsair = Bater o ponto de saida\ntransformar = Envia a imagem como você enviou como ASCII em file txt\nviraremoji = Transforma a sua imagem com emojis\nd20 = Roda um dado de 20 números.\nMais comandos em breve 👹!")
 
 @bot.command()
 async def bluetuf(ctx:commands.Context):
@@ -199,10 +207,248 @@ async def d20(ctx: commands.Context):
     # Send the embed
     await ctx.reply(embed=embed, file=file)
 
+COLORS = {
+    (0, 0, 0): "⚫",
+    (0, 0, 255): "🔵",
+    (255, 0, 0): "🔴",
+    (255, 255, 0): "🟡",
+    (255, 165, 0): "🟠",
+    (255, 255, 255): "⚪",
+    (0, 255, 0): "🟢",
+}
 
+
+def euclidean_distance(c1, c2):
+    r1, g1, b1 = c1
+    r2, g2, b2 = c2
+    d = ((r2 - r1) ** 2 + (g2 - g1) ** 2 + (b2 - b1) ** 2) ** 0.5
+
+    return d
+
+
+def find_closest_emoji(color):
+    c = min(COLORS, key=lambda k: euclidean_distance(color, k))
+    return COLORS[c]
+
+
+def emojify_image(img, size=14):
+    WIDTH, HEIGHT = (size, size)
+    small_img = img.resize((WIDTH, HEIGHT), Image.NEAREST)
+    emoji = ""
+    small_img = small_img.load()
+    for y in range(HEIGHT):
+        for x in range(WIDTH):
+            emoji += find_closest_emoji(small_img[x, y])
+        emoji += "\n"
+    return emoji
+
+
+@bot.command()
+async def viraremoji(ctx, url: Union[discord.Member, str], size: int = 14):
+    if isinstance(url, discord.Member):
+        url = url.avatar_url
+
+    def get_emojified_image():
+        try:
+            r = requests.get(url, stream=True)
+            image = Image.open(r.raw).convert("RGB")
+            res = emojify_image(image, size)
+
+            if size > 14:
+                res = f"```{res}```"
+            return res
+        except Exception as e:
+            print("Error in get_emojified_image:", e)
+            return "Error processing the image."
+
+    print("Starting image processing")
+    result = await bot.loop.run_in_executor(None, get_emojified_image)
+    print("Finished image processing")
+    await ctx.send(result)
+
+
+
+URL = "http://aspiadas.com/randomjoke.php"
+
+@bot.command()
+async def joke(ctx: commands.Context):
+    response = requests.get(URL)
+    if response.status_code == 200:
+        # Decodifica a resposta ISO-8859-1 para UTF-8
+        response.encoding = 'ISO-8859-1'
+        html = response.text
+
+        # Analisa o HTML para obter a piada
+        soup = BeautifulSoup(html, 'html.parser')
+        joke_div = soup.find('div', align='center')
+        if joke_div:
+            joke_text = joke_div.text.strip()
+            # Limpa a piada removendo tags HTML restantes
+            joke_text = re.sub(r'<.*?>', '', joke_text)
+            await ctx.reply(joke_text)
+        else:
+            await ctx.reply("Não foi possível obter a piada")
+    else:
+        await ctx.reply("Serviço indisponível.")
+
+
+#####################################CINEALLIES###############################################
+        
+@bot.command()
+async def cineallies(ctx: commands.Context):
+    embed = discord.Embed(title=f"Aqui estão alguns comandos para usar para o CineAllies",description=f"Para LTs:\nproibir: Proibe a pessoa que você mencionar de adicionar filmes.\nlimparlista:remove todos os filmes da lista.\nremoverfilme numero: remove o filme de acordo com numero que você colocou\nvotarfilme: Começa a votação\nOutros comandos:\nlistafilmes = Manda a lista de filmes\nindicar = Indica um filme pro Cineallies.", color=discord.Color.blue())
+
+    await ctx.reply(embed=embed)
+
+@bot.command()
+async def indicar(ctx: commands.Context, *, nomedofilme):
+    usuario = ctx.author
+    # Verificar se o usuário está na lista de indicadores proibidos
+    if usuario in indicadores_proibidos:
+        await ctx.reply("Você está na lista de indicadores proibidos e não pode indicar filmes.")
+    else:
+        # Verificar se já existem 10 filmes na lista
+        with open("movies.txt", "r") as file:
+            filmes = file.readlines()
+        if len(filmes) >= 10:
+            await ctx.reply("Já existem 10 filmes na lista e não é possível adicionar mais. Utilize comando limparlista ou removerfilme")
+        else:
+            await ctx.reply(f"O usuário {usuario.display_name} indicou o filme {nomedofilme}.")
+            # Salvar o nome do filme no arquivo movies.txt
+            with open("movies.txt", "a") as file:
+                file.write(nomedofilme + "\n")
+                
+def check_role(ctx):
+    allies_role = discord.utils.get(ctx.guild.roles, name="Allies LT")
+    return allies_role in ctx.author.roles
+
+indicadores_proibidos = []
+
+@bot.command()
+async def proibir(ctx, proibido: discord.Member):
+    if not check_role(ctx):
+        await ctx.send("Você não tem permissão para usar este comando.")
+        return
+    if proibido not in indicadores_proibidos:
+        indicadores_proibidos.append(proibido)
+        await ctx.send(f'{proibido.display_name} foi adicionado à lista de indicadores proibidos.')
+    else:
+        await ctx.send(f'{proibido.display_name} já está na lista de indicadores proibidos.')
+
+@bot.command()
+async def limparlista(ctx: commands.Context):
+    if not check_role(ctx):
+        await ctx.send("Você não tem permissão para usar este comando.")
+        return
+    # Verificar se o arquivo movies.txt existe
+    try:
+        with open("movies.txt", "r"):
+            pass
+    except FileNotFoundError:
+        await ctx.send("A lista de filmes já está vazia.")
+        return
+
+    # Limpar o conteúdo do arquivo movies.txt
+    with open("movies.txt", "w") as file:
+        file.truncate(0)
+
+    await ctx.send("A lista de filmes foi limpa com sucesso.")
+
+@bot.command()
+async def listafilmes(ctx: commands.Context):
+    # Ler os filmes do arquivo movies.txt
+    with open("movies.txt", "r") as file:
+        filmes = file.readlines()
+
+    # Verificar se há filmes na lista
+    if filmes:
+        # Construir a mensagem com a lista numerada de filmes
+        mensagem = "Lista de Filmes:\n"
+        for i, filme in enumerate(filmes, start=1):
+            mensagem += f"{i}. {filme}"
+
+        # Criar o objeto Embed
+        embed = discord.Embed(title="Lista de Filmes", description=mensagem, color=discord.Color.green())
+
+        # Enviar a mensagem com a lista de filmes
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send("A lista de filmes está vazia.")
+
+
+
+@bot.command()
+async def removerfilme(ctx: commands.Context, indexremovido: int):
+    # Verificar se o índice fornecido é válido
+    if indexremovido <= 0:
+        await ctx.send("O índice fornecido deve ser um número positivo.")
+        return
+
+    # Ler os filmes do arquivo movies.txt
+    with open("movies.txt", "r") as file:
+        filmes = file.readlines()
+
+    # Verificar se o índice fornecido está dentro do intervalo da lista de filmes
+    if indexremovido > len(filmes):
+        await ctx.send("O índice fornecido está fora do intervalo da lista de filmes.")
+        return
+
+    # Remover o filme da lista com base no índice fornecido
+    filme_removido = filmes.pop(indexremovido - 1)
+
+    # Escrever a lista atualizada de filmes de volta no arquivo movies.txt
+    with open("movies.txt", "w") as file:
+        file.writelines(filmes)
+
+    # Enviar mensagem confirmando a remoção do filme
+    await ctx.send(f"Filme removido: {filme_removido.strip()}")
+
+@bot.command()
+async def votarfilme(ctx: commands.Context, minutosvotacao):
+    # Verifica se o autor do comando possui a role "Allies LT"
+    if not check_role(ctx):
+        await ctx.send("Você não tem permissão para usar este comando.")
+        return
+
+    # Lê os filmes do arquivo movies.txt
+    filmes = []
+    with open("movies.txt", "r") as file:
+        filmes = file.readlines()
+    filmes = [filme.strip() for filme in filmes]
+
+    if not filmes:
+        await ctx.send("Não há filmes para votar.")
+        return
+
+    # Cria uma lista de reações para votação
+    reactions = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟']
+
+    # Envia a lista de filmes para votação
+    vote_message = "Escolha um filme votando com as reações:\n\n"
+    for index, filme in enumerate(filmes):
+        vote_message += f"{index + 1}. {filme}\n"
+    vote_message += "\nA votação durará " + minutosvotacao + " minutos."
+    vote_message = await ctx.send(vote_message)
+
+    # Adiciona as reações à mensagem para votação
+    for i in range(min(len(filmes), len(reactions))):
+        await vote_message.add_reaction(reactions[i])
+
+    # Aguarda o tempo de votação
+    await asyncio.sleep(int(minutosvotacao) * 60)
+
+    # Obtém as reações da mensagem de votação
+    vote_message = await ctx.channel.fetch_message(vote_message.id)
+    reaction_counts = {react: react.count - 1 for react in vote_message.reactions}
+
+    # Obtém o filme mais votado
+    max_votes = max(reaction_counts.values())
+    most_voted_film = [filme for filme, votes in reaction_counts.items() if votes == max_votes]
+    # Envia o resultado da votação
+    await ctx.send(f"O filme mais votado foi {most_voted_film[0]}")
 
 @bot.event
 async def on_ready():
     print("Ready")
 
-bot.run("MTIxMzA5NjQ1OTg1MTkyNzU2Mg.GfdO4H.mRz7mOxgRd4Hnsbu5os70I7PgOaKX_NLiGDC5E")
+bot.run("")
